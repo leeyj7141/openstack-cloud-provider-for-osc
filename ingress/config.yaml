@@ -6,7 +6,7 @@ metadata:
   namespace: kube-system
 data:
   config: |
-    cluster-name: barbican-test2
+    cluster-name: yjlee-test4
     openstack:
       auth-url: http://192.168.88.250:35357/v3
       domain-name: Default

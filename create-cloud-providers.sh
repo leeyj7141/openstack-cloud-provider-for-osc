@@ -18,8 +18,7 @@ FLOATING_IP_NET_ID=6b84c969-e0e1-4106-a5d0-a601f92f2903
 K8S_SUBNET_ID=b3861eec-d017-4277-969b-258c9a9debf8
 DNS_DOMAIN=devops.osc
 DNS=192.168.88.254
-CLUSTER_ID=barbican-test2
-#CLUSTER_ID=acme-test
+CLUSTER_ID=yjlee-test4
 
 
 echo --- create cloud.conf  ---
@@ -190,6 +189,14 @@ kubectl apply -f cinder-csi/
 echo 
 echo --- create external dns provider ---
 kubectl apply -f dns/
+
+
+echo 
+echo --- unset cloudprovider taint ---
+for i in $(kubectl get node -o jsonpath="{ .items[*].metadata.name }")
+do
+  kubectl taint nodes $i node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+done
 
 #echo 
 #echo --- create octavia ingress controller  ---

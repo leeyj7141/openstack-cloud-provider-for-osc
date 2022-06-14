@@ -8,7 +8,7 @@ spec:
   tls:
     - secretName: tls-secret
   rules:
-  - host: foo2.bar.com.devops.osc
+  - host: foo.bar.com.devops.osc
     http:
       paths:
       - path: /
@@ -25,7 +25,7 @@ apiVersion: v1
 kind: Service
 metadata:
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: foo2.bar.com.devops.osc
+    external-dns.alpha.kubernetes.io/hostname: foo.bar.com.devops.osc
   name: nginx-tls
 spec:
   type: LoadBalancer
@@ -35,7 +35,7 @@ spec:
   selector:
     app: nginx-tls
   externalIPs: 
-  - 192.168.88.204
+  - 192.168.88.206
 
 ---
 
