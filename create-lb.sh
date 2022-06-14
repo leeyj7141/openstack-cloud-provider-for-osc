@@ -19,10 +19,7 @@ K8S_SUBNET_ID=b3861eec-d017-4277-969b-258c9a9debf8
 FLOATING_IP=192.168.88.206
 CLUSTER_ID=yjlee-test4
 OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
-INGRESS_CONTROLLER_IPS='
-2.2.2.41
-2.2.2.84
-'
+INGRESS_CONTROLLER_IPS=$(kubectl get node -o jsonpath="{ .items[*].status.addresses[0].address }")
 
 $OPENSTACK_CMD loadbalancer create --name ${CLUSTER_ID}-LB --vip-subnet-id ${K8S_SUBNET_ID} --project admin  --wait 
 $OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-listener --protocol HTTP --protocol-port 80 --enable  ${CLUSTER_ID}-LB --wait 
