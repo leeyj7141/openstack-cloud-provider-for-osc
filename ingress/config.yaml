@@ -1,0 +1,21 @@
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: octavia-ingress-controller-config
+  namespace: kube-system
+data:
+  config: |
+    cluster-name: barbican-test2
+    openstack:
+      auth-url: http://192.168.88.250:35357/v3
+      domain-name: Default
+      username: "lb-admin"
+      password: "root123"
+      project-name: admin
+      region: RegionOne
+    octavia:
+      subnet-id: b3861eec-d017-4277-969b-258c9a9debf8
+      floating-network-id: 6b84c969-e0e1-4106-a5d0-a601f92f2903
+      manage-security-groups: true
+      provider: amphora

@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-tls
+  annotations:
+    octavia.ingress.kubernetes.io/internal: "false"
+spec:
+  tls:
+    - secretName: tls-secret
+  rules:
+  - host: foo2.bar.com.devops.osc
+    http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: nginx-tls
+            port:
+              number: 443
+        pathType: Prefix
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: foo2.bar.com.devops.osc
+  name: nginx-tls
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+    targetPort: 80
+  selector:
+    app: nginx-tls
+  externalIPs: 
+  - 192.168.88.204
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-tls
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-tls
+  template:
+    metadata:
+      labels:
+        app: nginx-tls
+    spec:
+      containers:
+      - image: nginx
+        name: nginx-tls
+        ports:
+        - containerPort: 80

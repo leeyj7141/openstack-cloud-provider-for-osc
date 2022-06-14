@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: external-dns
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: external-dns
+    spec:
+      serviceAccountName: external-dns
+      tolerations:
+        - effect: NoSchedule # Make sure the pod can be scheduled on master kubelet.
+          operator: Exists
+        - key: CriticalAddonsOnly # Mark the pod as a critical add-on for rescheduling.
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      containers:
+      - name: external-dns
+        image: k8s.gcr.io/external-dns/external-dns:v0.12.0
+        args:
+        #- --source=ingress
+        - --source=service
+        - --domain-filter=devops.osc
+        - --provider=designate
+        - --registry=txt
+        - --txt-owner-id=barbican-test2
+        env: 
+        - name: OS_AUTH_URL
+          value: http://192.168.88.250:35357/v3
+        - name: OS_REGION_NAME
+          value: RegionOne
+        - name: OS_USERNAME
+          value: lb-admin
+        - name: OS_PASSWORD
+          value: root123
+        - name: OS_PROJECT_NAME
+          value: admin
+        - name: OS_USER_DOMAIN_NAME
+          value: Default

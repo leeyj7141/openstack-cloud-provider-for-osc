@@ -1,0 +1,29 @@
+apiVersion: v1
+data:
+  Corefile: |
+    devops.osc:53 {
+        errors
+        cache 300
+        forward . "192.168.88.254"
+    }
+    .:53 {
+        errors
+        health {
+          lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+          pods insecure
+          fallthrough in-addr.arpa ip6.arpa
+        }
+        prometheus :9153
+        forward . "8.8.8.8"
+        cache 300
+        loop
+        reload
+        loadbalance
+    } 
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
