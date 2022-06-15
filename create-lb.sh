@@ -21,26 +21,46 @@ CLUSTER_ID=yjlee-test4
 OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
 INGRESS_CONTROLLER_IPS=$(kubectl get node -o jsonpath="{ .items[*].status.addresses[0].address }")
 
-$OPENSTACK_CMD loadbalancer create --name ${CLUSTER_ID}-LB --vip-subnet-id ${K8S_SUBNET_ID} --project admin  --wait 
-$OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-listener --protocol HTTP --protocol-port 80 --enable  ${CLUSTER_ID}-LB --wait 
-$OPENSTACK_CMD loadbalancer pool create --protocol HTTP --lb-algorithm ROUND_ROBIN --name ${CLUSTER_ID}-http-pool --listener ${CLUSTER_ID}-listener  --wait
-for i in ${INGRESS_CONTROLLER_IPS}
-do
-  $OPENSTACK_CMD loadbalancer member create ${CLUSTER_ID}-http-pool --name ${i}-http --address ${i} --protocol-port 80 --wait
-done
+function create_lb {
+if $OPENSTACK_CMD loadbalancer list -f value -c name | grep -qE \^${CLUSTER_ID}-LB\$ ; then 
+  echo "------ Loadbalancer ${CLUSTER_ID}-LB already exists  ------"
+else 
+  $OPENSTACK_CMD loadbalancer create --name ${CLUSTER_ID}-LB --vip-subnet-id ${K8S_SUBNET_ID} --project admin  --wait 
+  $OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-listener --protocol HTTP --protocol-port 80 --enable  ${CLUSTER_ID}-LB --wait 
+  $OPENSTACK_CMD loadbalancer pool create --protocol HTTP --lb-algorithm ROUND_ROBIN --name ${CLUSTER_ID}-http-pool --listener ${CLUSTER_ID}-listener  --wait
+  for i in ${INGRESS_CONTROLLER_IPS}
+  do
+    $OPENSTACK_CMD loadbalancer member create ${CLUSTER_ID}-http-pool --name ${i}-http --address ${i} --protocol-port 80 --wait
+  done
+  
+  $OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-tls-listener --protocol TCP --protocol-port 443 --enable  ${CLUSTER_ID}-LB --wait
+  $OPENSTACK_CMD loadbalancer pool create --protocol TCP --lb-algorithm ROUND_ROBIN --name ${CLUSTER_ID}-tls-pool --listener ${CLUSTER_ID}-tls-listener  --wait
+  for i in ${INGRESS_CONTROLLER_IPS}
+  do
+    $OPENSTACK_CMD loadbalancer member create ${CLUSTER_ID}-tls-pool --name ${i}-tls --address ${i} --protocol-port 443 --wait
+  done
+  
+  $OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}
+  LB_IP=$($OPENSTACK_CMD loadbalancer show ${CLUSTER_ID}-LB -f value  -c vip_address)
+  LB_PORT_ID=$($OPENSTACK_CMD port list -f value | grep ${LB_IP} |awk '{print $1}')
+  $OPENSTACK_CMD floating ip set --port ${LB_PORT_ID} ${FLOATING_IP}
+fi
+}
 
-$OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-tls-listener --protocol TCP --protocol-port 443 --enable  ${CLUSTER_ID}-LB --wait
-$OPENSTACK_CMD loadbalancer pool create --protocol TCP --lb-algorithm ROUND_ROBIN --name ${CLUSTER_ID}-tls-pool --listener ${CLUSTER_ID}-tls-listener  --wait
-for i in ${INGRESS_CONTROLLER_IPS}
-do
-  $OPENSTACK_CMD loadbalancer member create ${CLUSTER_ID}-tls-pool --name ${i}-tls --address ${i} --protocol-port 443 --wait
-done
+function delete_lb {
+$OPENSTACK_CMD loadbalancer delete ${CLUSTER_ID}-LB --cascade --wait 
+echo ----- Loadbalancer ${CLUSTER_ID}-LB deleted -----
+$OPENSTACK_CMD floating ip delete ${FLOATING_IP}
+echo ----- Floating ip ${FLOATING_IP} deleted -----
+}
 
-$OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}
-LB_IP=$($OPENSTACK_CMD loadbalancer show ${CLUSTER_ID}-LB -f value  -c vip_address)
-LB_PORT_ID=$($OPENSTACK_CMD port list -f value | grep ${LB_IP} |awk '{print $1}')
-$OPENSTACK_CMD floating ip set --port ${LB_PORT_ID} ${FLOATING_IP}
+if [[ $# -eq 0 ]] ; then 
+  create_lb
+fi
 
-# ----- remove script -----
-#$OPENSTACK_CMD loadbalancer delete ${CLUSTER_ID}-LB --cascade --wait 
-#$OPENSTACK_CMD floating ip delete ${FLOATING_IP}
+case "$1" in 
+  create) 
+    create_lb ;;
+  delete) 
+    delete_lb ;;
+esac
