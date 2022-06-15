@@ -19,7 +19,7 @@ K8S_SUBNET_ID=b3861eec-d017-4277-969b-258c9a9debf8
 FLOATING_IP=192.168.88.206
 CLUSTER_ID=yjlee-test4
 OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
-INGRESS_CONTROLLER_IPS=$(kubectl get node -o jsonpath="{ .items[*].status.addresses[0].address }")
+INGRESS_CONTROLLER_IPS=$(kubectl get nodes  -o jsonpath={.items[*].status.addresses[?\(@.type==\"InternalIP\"\)].address})
 
 function create_lb {
 if $OPENSTACK_CMD loadbalancer list -f value -c name | grep -qE \^${CLUSTER_ID}-LB\$ ; then 
