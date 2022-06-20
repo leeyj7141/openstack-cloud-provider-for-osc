@@ -51,6 +51,7 @@ esac
 }
 
 function create_lb {
+echo "------ Create Loadbalancer ${CLUSTER_ID}-LB ------"
 if $OPENSTACK_CMD loadbalancer list -f value -c name | grep -qE \^${CLUSTER_ID}-LB\$ ; then 
   echo "------ Loadbalancer ${CLUSTER_ID}-LB already exists  ------"
 else 
@@ -81,6 +82,7 @@ fi
 }
 
 function delete_lb {
+echo ----- Delete Loadbalancer ${CLUSTER_ID}-LB -----
 $OPENSTACK_CMD loadbalancer delete ${CLUSTER_ID}-LB --cascade --wait 
 echo ----- Loadbalancer ${CLUSTER_ID}-LB deleted -----
 $OPENSTACK_CMD floating ip delete ${FLOATING_IP}
