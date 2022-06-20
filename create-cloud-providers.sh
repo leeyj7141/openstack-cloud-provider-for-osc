@@ -51,6 +51,7 @@ esac
 }
 
 function create_lb {
+echo
 echo "------ Create Loadbalancer ${CLUSTER_ID}-LB ------"
 if $OPENSTACK_CMD loadbalancer list -f value -c name | grep -qE \^${CLUSTER_ID}-LB\$ ; then 
   echo "------ Loadbalancer ${CLUSTER_ID}-LB already exists  ------"
@@ -82,6 +83,7 @@ fi
 }
 
 function delete_lb {
+echo
 echo ----- Delete Loadbalancer ${CLUSTER_ID}-LB -----
 $OPENSTACK_CMD loadbalancer delete ${CLUSTER_ID}-LB --cascade --wait 
 echo ----- Loadbalancer ${CLUSTER_ID}-LB deleted -----
@@ -331,8 +333,8 @@ OPTION
     --dns | -d
     --octavia-lb | -o 
 EXAMPLE
-   $0 test_cluster create --csi -d -o
-   $0 test_cluster delete --dns -c -l
+   $0 create --csi -d -o
+   $0 delete --dns -c -l
 "
 }
 

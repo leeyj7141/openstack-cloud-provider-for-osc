@@ -6,7 +6,7 @@ metadata:
   namespace: kube-system
 data:
   config: |
-    cluster-name: cicd
+    cluster-name: yjlee-test13
     openstack:
       auth-url: http://192.168.88.250:35357/v3
       domain-name: Default
