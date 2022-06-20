@@ -18,9 +18,77 @@ FLOATING_IP_NET_ID=6b84c969-e0e1-4106-a5d0-a601f92f2903
 K8S_SUBNET_ID=b3861eec-d017-4277-969b-258c9a9debf8
 DNS_DOMAIN=devops.osc
 DNS=192.168.88.254
-CLUSTER_ID=yjlee-test4
+FLOATING_IP=192.168.88.224
+CLUSTER_ID=$(kubectl config current-context)
+OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
+INGRESS_CONTROLLER_IPS="$(kubectl get nodes  -o jsonpath={.items[*].status.addresses[?\(@.type==\"InternalIP\"\)].address})"
+
+function check_cluster_id {
+echo -e ""
+read -p "###### Current k8s context is $CLUSTER_ID  #######
+###### Floating IP Netowrk ID = $FLOATING_IP_NET_ID
+###### Floating IP $FLOATING_IP 
+###### K8S Subnet ID = $K8S_SUBNET_ID
+###### DNS DOMAIN = $DNS_DOMAIN
+###### DNS SERVER = $DNS
+###### CLUSTER ID = $CLUSTER_ID
+###### OPENSTACK CMD = $OPENSTACK_CMD 
+###### Do you want to proceed? [y|n] ###### " answer
+case $answer in 
+  y) 
+    echo "Environment
+$FLOATING_IP_NET_ID
+$K8S_SUBNET_ID
+$DNS_DOMAIN
+$DNS
+$CLUSTER_ID
+$OPENSTACK_CMD" ;;
+  n) 
+    exit ;;
+  *) 
+    help_page ; exit ;;
+esac
+}
+
+function create_lb {
+if $OPENSTACK_CMD loadbalancer list -f value -c name | grep -qE \^${CLUSTER_ID}-LB\$ ; then 
+  echo "------ Loadbalancer ${CLUSTER_ID}-LB already exists  ------"
+else 
+  $OPENSTACK_CMD loadbalancer create --name ${CLUSTER_ID}-LB --vip-subnet-id ${K8S_SUBNET_ID} --project admin  --wait 
+  $OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-listener --protocol HTTP --protocol-port 80 --enable  ${CLUSTER_ID}-LB --wait 
+  $OPENSTACK_CMD loadbalancer pool create --protocol HTTP --lb-algorithm ROUND_ROBIN --name ${CLUSTER_ID}-http-pool --listener ${CLUSTER_ID}-listener  --wait
+  for i in ${INGRESS_CONTROLLER_IPS}
+  do
+    $OPENSTACK_CMD loadbalancer member create ${CLUSTER_ID}-http-pool --name ${i}-http --address ${i} --protocol-port 80 --wait
+  done
+  
+  $OPENSTACK_CMD loadbalancer listener create --name  ${CLUSTER_ID}-tls-listener --protocol TCP --protocol-port 443 --enable  ${CLUSTER_ID}-LB --wait
+  $OPENSTACK_CMD loadbalancer pool create --protocol TCP --lb-algorithm ROUND_ROBIN --name ${CLUSTER_ID}-tls-pool --listener ${CLUSTER_ID}-tls-listener  --wait
+  for i in ${INGRESS_CONTROLLER_IPS}
+  do
+    $OPENSTACK_CMD loadbalancer member create ${CLUSTER_ID}-tls-pool --name ${i}-tls --address ${i} --protocol-port 443 --wait
+  done
+  
+fi
+  echo "$OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}" # debug 
+  $OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}
+  LB_IP=$($OPENSTACK_CMD loadbalancer show ${CLUSTER_ID}-LB -f value  -c vip_address)
+  LB_IP=$($OPENSTACK_CMD loadbalancer show ${CLUSTER_ID}-LB -f value  -c vip_address)
+  LB_PORT_ID=$($OPENSTACK_CMD port list -f value | grep ${LB_IP} |awk '{print $1}')
+  LB_PORT_ID=$($OPENSTACK_CMD port list -f value | grep ${LB_IP} |awk '{print $1}')
+  echo "$OPENSTACK_CMD floating ip set --port ${LB_PORT_ID} ${FLOATING_IP}"
+  $OPENSTACK_CMD floating ip set --port ${LB_PORT_ID} ${FLOATING_IP}
+}
+
+function delete_lb {
+$OPENSTACK_CMD loadbalancer delete ${CLUSTER_ID}-LB --cascade --wait 
+echo ----- Loadbalancer ${CLUSTER_ID}-LB deleted -----
+$OPENSTACK_CMD floating ip delete ${FLOATING_IP}
+echo ----- Floating ip ${FLOATING_IP} deleted -----
+}
 
 
+function setup_cloud_conf {
 echo --- create cloud.conf  ---
 echo "
 [Global]
@@ -45,7 +113,9 @@ bs-version=v2
 #[KeyManager]
 #key-id = fdfe96cc-0408-4e2b-8d95-7531e4e0e647
 " |tee  cloud.conf 
+}
 
+function setup_octavia_config {
 echo ---- octavia ingress controller configmap ---
 cat << EE > ingress/config.yaml
 ---
@@ -70,7 +140,9 @@ data:
       manage-security-groups: true
       provider: amphora
 EE
+}
 
+function setup_cinder_csi_config {
 echo ---- create secret yaml ----
 cat <<EE > cinder-csi/csi-secret-cinderplugin.yaml
 ---
@@ -82,7 +154,10 @@ metadata:
 data:
   cloud.conf: `base64 -w 0 cloud.conf`
 EE
+}
 
+function setup_external_loadbalancer {
+echo ---- create cloud provider loadbalancer yaml ---
 cat <<EE > loadbalancer/cloud-config-secret-loadbalancer.yaml
 ---
 kind: Secret
@@ -93,7 +168,9 @@ metadata:
 data:
   cloud.conf: `base64 -w 0 cloud.conf`
 EE
+}
 
+function setup_external_dns {
 echo ---- create external dns deployment yaml ---
 cat << EE > dns/externaldns-deployment.yaml
 ---
@@ -145,7 +222,9 @@ spec:
         - name: OS_USER_DOMAIN_NAME
           value: ${OS_USER_DOMAIN_NAME}
 EE
+}
 
+function setup_coredns {
 cat << EE > coredns/coredns-config.yaml 
 apiVersion: v1
 data:
@@ -166,7 +245,7 @@ data:
           fallthrough in-addr.arpa ip6.arpa
         }
         prometheus :9153
-        forward . "8.8.8.8"
+        forward . "/etc/resolv.conf"
         cache 300
         loop
         reload
@@ -177,28 +256,131 @@ metadata:
   name: coredns
   namespace: kube-system
 EE
+}
 
+function create_cinder_csi {
 echo 
 echo --- create cinder csi ---
 kubectl apply -f cinder-csi/
+}
 
-#echo 
-#echo --- create external loadbalancer provider ---
-#kubectl apply -f loadbalancer/
+function create_external_loadbalancer {
+echo 
+echo --- create external loadbalancer provider ---
+kubectl apply -f loadbalancer/
+}
 
+function create_external_dns {
 echo 
 echo --- create external dns provider ---
 kubectl apply -f dns/
+}
 
+function edit_coredns {
+echo 
+echo --- edit coredns nameservers ---
+kubectl apply -f coredns/
+kubectl delete pod -l k8s-app=kube-dns  -n kube-system 
+}
 
+function remove_taints {
 echo 
 echo --- unset cloudprovider taint ---
 for i in $(kubectl get node -o jsonpath="{ .items[*].metadata.name }")
 do
   kubectl taint nodes $i node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
 done
+}
 
-#echo 
-#echo --- create octavia ingress controller  ---
-#kubectl apply -f ingress/
+function create_octavia_ingress_controller {
+echo 
+echo --- create octavia ingress controller  ---
+kubectl apply -f ingress/
+}
 
+function delete_external_loadbalancer {
+kubectl delete -f loadbalancer/
+}
+
+function delete_external_dns {
+kubectl delete -f dns/
+}
+
+function delete_octavia_ingress_controller {
+kubectl delete -f ingress
+}
+
+function delete_cinder_csi {
+kubectl delete -f cinder-csi
+}
+
+function help_page {
+echo "
+Usage: $0 CLUSTER_ID SUBCOMMAND OPTION...
+
+SUBCOMMAND 
+    create
+    delete
+OPTION
+    --csi | -c 
+    --lb-provider | -l
+    --ingress | -i 
+    --coredns  | -n 
+    --dns | -d
+    --octavia-lb | -o 
+EXAMPLE
+   $0 test_cluster create --csi -d -o
+   $0 test_cluster delete --dns -c -l
+"
+}
+
+
+case "$1" in 
+  help)
+    help_page ;;
+  create)
+    check_cluster_id ; 
+    remove_taints ;
+    until [ -z "$2" ]
+    do
+      case "$2" in     
+        --lb-provider| -l)
+          ernal_loadbalancer  ; create_external_loadbalancer  ;;
+        --dns | -d)
+          setup_external_dns  ; create_external_dns  ;;
+        --ingress| -i)
+          setup_octavia_config  ; create_octavia_ingress_controller  ;; 
+        --coredns| -n)
+          setup_coredns ; edit_coredns ;;
+        --csi| -c )
+          setup_cinder_csi_config ; create_cinder_csi ;;
+        --octavia-lb| -o )
+          create_lb ;;
+        *)  
+          help_page ;;
+      esac
+      shift
+    done ;;
+  delete)
+    check_cluster_id ;
+    until [ -z "$2" ]
+    do
+      case "$2" in     
+        --lb-provider| -l)
+          delete_external_loadbalancer ;;
+        --dns | -d)
+          delete_external_dns ;;
+        --ingress| -i)
+          delete_octavia_ingress_controller  ;;
+        --csi| -c )
+          delete_cinder_csi  ;;
+        --octavia-lb| -o )
+          delete_lb ;;
+        *)  
+          help_page ;;
+      esac
+      shift
+    done ;;
+  *)  
+    help_page ;;
+esac

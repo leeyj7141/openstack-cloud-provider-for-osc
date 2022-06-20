@@ -32,7 +32,7 @@ spec:
         - --domain-filter=devops.osc
         - --provider=designate
         - --registry=txt
-        - --txt-owner-id=yjlee-test4
+        - --txt-owner-id=cicd
         env: 
         - name: OS_AUTH_URL
           value: http://192.168.88.250:35357/v3
