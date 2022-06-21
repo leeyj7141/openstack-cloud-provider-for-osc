@@ -333,7 +333,7 @@ OPTION
     --dns | -d
     --octavia-lb | -o 
 EXAMPLE
-   $0 create --csi -d -o
+   $0 create --csi -d -o -n 
    $0 delete --dns -c -l
 "
 }
