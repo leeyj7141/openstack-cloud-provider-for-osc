@@ -14,14 +14,15 @@ export OS_IDENTITY_API_VERSION=3
 export OS_REGION_NAME=RegionOne
 export OS_AUTH_PLUGIN=password
 
-FLOATING_IP_NET_ID=6b84c969-e0e1-4106-a5d0-a601f92f2903
-K8S_SUBNET_ID=b3861eec-d017-4277-969b-258c9a9debf8
-DNS_DOMAIN=devops.osc
-DNS=192.168.88.254
-FLOATING_IP=192.168.88.224
-CLUSTER_ID=$(kubectl config current-context)
-OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
-INGRESS_CONTROLLER_IPS="$(kubectl get nodes  -o jsonpath={.items[*].status.addresses[?\(@.type==\"InternalIP\"\)].address})"
+export FLOATING_IP_NET_ID=6b84c969-e0e1-4106-a5d0-a601f92f2903
+export K8S_SUBNET_ID=b3861eec-d017-4277-969b-258c9a9debf8
+export DNS_DOMAIN='devops.osc cicd.osc'
+export DNS='192.168.88.254 192.168.88.250'
+export DNS_ZONE_EMAIL='yjlee@linux.com'
+export FLOATING_IP=192.168.88.224
+export CLUSTER_ID=$(kubectl config current-context)
+export OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
+export INGRESS_CONTROLLER_IPS="$(kubectl get nodes  -o jsonpath={.items[*].status.addresses[?\(@.type==\"InternalIP\"\)].address})"
 
 function check_cluster_id {
 echo -e ""
@@ -36,18 +37,26 @@ read -p "###### Current k8s context is $CLUSTER_ID  #######
 ###### Do you want to proceed? [y|n] ###### " answer
 case $answer in 
   y) 
-    echo "Environment
-$FLOATING_IP_NET_ID
-$K8S_SUBNET_ID
-$DNS_DOMAIN
-$DNS
-$CLUSTER_ID
-$OPENSTACK_CMD" ;;
+    echo ;;
   n) 
     exit ;;
   *) 
     help_page ; exit ;;
 esac
+}
+
+function create_zone {
+echo 
+for Z in $DNS
+do
+  echo "------ Check if zone $Z exists -----"
+  if $OPENSTACK_CMD zone list -f value -c name  |grep -i "^${Z}.$" -q ; then
+    echo "------ DNS zone $Z already exists. -----"
+  else
+    echo "------ Create zone $Z -----"
+    $OPENSTACK_CMD zone create --email $DNS_ZONE_EMAIL ${Z}.
+  fi
+done
 }
 
 function create_lb {
@@ -208,7 +217,7 @@ spec:
         args:
         #- --source=ingress
         - --source=service
-        - --domain-filter=${DNS_DOMAIN}
+        #- --domain-filter=${DNS_DOMAIN} # domain-filter 
         - --provider=designate
         - --registry=txt
         - --txt-owner-id=${CLUSTER_ID}
@@ -233,11 +242,18 @@ cat << EE > coredns/coredns-config.yaml
 apiVersion: v1
 data:
   Corefile: |
-    ${DNS_DOMAIN}:53 {
-        errors
-        cache 300
-        forward . "${DNS}"
-    }
+EE
+for D in $DNS_DOMAIN
+do
+  cat << EF >> coredns/coredns-config.yaml 
+      ${D}:53 {
+          errors
+          cache 300
+          forward . "${DNS}"
+      }
+EF
+done
+cat << ED >> coredns/coredns-config.yaml 
     .:53 {
         errors
         health {
@@ -259,7 +275,7 @@ kind: ConfigMap
 metadata:
   name: coredns
   namespace: kube-system
-EE
+ED
 }
 
 function create_cinder_csi {
@@ -345,6 +361,7 @@ case "$1" in
   create)
     check_cluster_id ; 
     remove_taints ;
+    create_zone ;
     until [ -z "$2" ]
     do
       case "$2" in     
