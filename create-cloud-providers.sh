@@ -217,7 +217,6 @@ spec:
         args:
         #- --source=ingress
         - --source=service
-        #- --domain-filter=${DNS_DOMAIN} # domain-filter 
         - --provider=designate
         - --registry=txt
         - --txt-owner-id=${CLUSTER_ID}
