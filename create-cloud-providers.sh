@@ -22,7 +22,7 @@ export DNS_ZONE_EMAIL='yjlee@linux.com'
 export FLOATING_IP=192.168.88.224
 export CLUSTER_ID=$(kubectl config current-context)
 export OPENSTACK_CMD='/home/openstack-cli/bin/openstack'
-export INGRESS_CONTROLLER_IPS="$(kubectl get nodes  -o jsonpath={.items[*].status.addresses[?\(@.type==\"InternalIP\"\)].address})"
+export INGRESS_CONTROLLER_IPS="$(kubectl get pod -n ingress-nginx -l app=ingress-nginx   -o jsonpath={.items[*].status.hostIP})"
 
 function check_cluster_id {
 echo -e ""
