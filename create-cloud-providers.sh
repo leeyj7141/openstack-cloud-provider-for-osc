@@ -28,7 +28,7 @@ function check_cluster_id {
 echo -e ""
 read -p "###### Current k8s context is $CLUSTER_ID  #######
 ###### Floating IP Netowrk ID = $FLOATING_IP_NET_ID
-###### Floating IP $FLOATING_IP 
+###### Floating IP = $FLOATING_IP 
 ###### K8S Subnet ID = $K8S_SUBNET_ID
 ###### DNS DOMAIN = $DNS_DOMAIN
 ###### DNS SERVER = $DNS
