@@ -81,7 +81,7 @@ else
   done
   
 fi
-if  openstack floating ip list  -f value -c 'Floating IP Address'  |grep -i "^${FLOATING_IP}$" ; then 
+if  openstack floating ip list  -f value -c 'Floating IP Address'  |grep -iq "^${FLOATING_IP}$" ; then 
   echo "----- Floating ip ${FLOATING_IP} already exists. -----"
 else
   echo "$OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}" # debug 

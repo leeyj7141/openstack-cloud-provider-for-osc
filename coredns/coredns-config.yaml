@@ -1,16 +1,16 @@
 apiVersion: v1
 data:
   Corefile: |
-      devops.osc:53 {
-          errors
-          cache 300
-          forward . "192.168.88.254 192.168.88.250"
-      }
-      cicd.osc:53 {
-          errors
-          cache 300
-          forward . "192.168.88.254 192.168.88.250"
-      }
+    devops.osc:53 {
+        errors
+        cache 300
+        forward . "192.168.88.254 192.168.88.250"
+    }
+    cicd.osc:53 {
+        errors
+        cache 300
+        forward . "192.168.88.254 192.168.88.250"
+    }
     .:53 {
         errors
         health {
