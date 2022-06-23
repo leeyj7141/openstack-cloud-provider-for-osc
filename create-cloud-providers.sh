@@ -252,7 +252,7 @@ do
     ${D}:53 {
         errors
         cache 300
-        forward . "${DNS}"
+        forward . ${DNS}
     }
 EF
 done
