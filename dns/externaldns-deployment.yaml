@@ -29,10 +29,9 @@ spec:
         args:
         #- --source=ingress
         - --source=service
-        - --domain-filter=devops.osc
         - --provider=designate
         - --registry=txt
-        - --txt-owner-id=cicd
+        - --txt-owner-id=cicd-osc
         env: 
         - name: OS_AUTH_URL
           value: http://192.168.88.250:35357/v3

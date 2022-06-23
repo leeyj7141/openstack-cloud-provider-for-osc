@@ -47,7 +47,7 @@ esac
 
 function create_zone {
 echo 
-for Z in $DNS
+for Z in $DNS_DOMAIN
 do
   echo "------ Check if zone $Z exists -----"
   if $OPENSTACK_CMD zone list -f value -c name  |grep -i "^${Z}.$" -q ; then
@@ -81,6 +81,9 @@ else
   done
   
 fi
+if  openstack floating ip list  -f value -c 'Floating IP Address'  |grep -i "^${FLOATING_IP}$" ; then 
+  echo "----- Floating ip ${FLOATING_IP} already exists. -----"
+else
   echo "$OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}" # debug 
   $OPENSTACK_CMD floating ip create --floating-ip-address ${FLOATING_IP} ${FLOATING_IP_NET_ID}
   LB_IP=$($OPENSTACK_CMD loadbalancer show ${CLUSTER_ID}-LB -f value  -c vip_address)
@@ -89,6 +92,7 @@ fi
   LB_PORT_ID=$($OPENSTACK_CMD port list -f value | grep ${LB_IP} |awk '{print $1}')
   echo "$OPENSTACK_CMD floating ip set --port ${LB_PORT_ID} ${FLOATING_IP}"
   $OPENSTACK_CMD floating ip set --port ${LB_PORT_ID} ${FLOATING_IP}
+fi
 }
 
 function delete_lb {
@@ -245,11 +249,11 @@ EE
 for D in $DNS_DOMAIN
 do
   cat << EF >> coredns/coredns-config.yaml 
-      ${D}:53 {
-          errors
-          cache 300
-          forward . "${DNS}"
-      }
+    ${D}:53 {
+        errors
+        cache 300
+        forward . "${DNS}"
+    }
 EF
 done
 cat << ED >> coredns/coredns-config.yaml 
@@ -365,7 +369,7 @@ case "$1" in
     do
       case "$2" in     
         --lb-provider| -l)
-          ernal_loadbalancer  ; create_external_loadbalancer  ;;
+          setup_external_loadbalancer ; create_external_loadbalancer  ;;
         --dns | -d)
           setup_external_dns  ; create_external_dns  ;;
         --ingress| -i)
